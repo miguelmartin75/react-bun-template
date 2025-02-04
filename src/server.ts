@@ -4,11 +4,14 @@ import {
   type ServerWebSocket,
   type WebSocketServeOptions,
 } from 'bun'
+import { Database } from "bun:sqlite";
 import { watch } from 'fs'
 
 import homepage from './index.html'
 
 const liveReload = createLiveReload()
+const db = new Database("dataset.sqlite3");
+db.exec("PRAGMA journal_mode = WAL;");  // WAL mode, see: https://bun.sh/docs/api/sqlite#wal-mode
 
 const serveOptions: Serve = {
   port: 8080,
@@ -17,12 +20,22 @@ const serveOptions: Serve = {
   },
   development: true,
   fetch: (req: Request): Promise<Response> | Response => {
+    // TODO: checkme
     if (server.upgrade(req)) {
       // @ts-expect-error
       return
     }
 
-    return new Response('HELLO')
+    const { url } = req;
+    const { pathname } = new URL(url);
+
+    if (pathname === "/samples") {
+      using query = db.query("SELECT * FROM Sample;");
+      var samples = query.all();
+      return Response.json(samples);
+    }
+
+    return new Response("404", { status: 404 });
   },
   websocket: liveReload.ws,
 }
